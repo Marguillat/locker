@@ -124,9 +124,10 @@ Le fichier est dans le chemin suivant : _/var/www/html/locker_
 <br/>
 
 ```python
-import time
 import sys
-from gpiozero import Servo
+import time
+from gpiozero import Servo, RGBLED
+from time import sleep
 ```
 
 Nous avons besoin d'importer plusieurs librairies Python.
@@ -134,45 +135,58 @@ Nous avons besoin d'importer plusieurs librairies Python.
 `Sys` permet d'appeler le script depuis le terminal avec des paramètres donnés.
 `Gpiozero` est un outil pour manipuler les GPIO.
 `Servo` est utilisé pour gérer la rotation d'un cerveau moteur. La rotation peut être effectué du minimum au maximum en passant par le point médian.
+`RGBLED` est la classe qui permet de manipuler une led multicolore avec les pin GPIO
 <br/>
 
 ```python
-ports = [17,27]
-
-myGPIO = int(sys.argv[1])
-myState = int(sys.argv[2])
-
-servo = Servo(myGPIO)
+led = RGBLED(red=16, green=20, blue=21)
+commande = sys.argv[1] # ouvrir ou fermé
+myGPIO = sys.argv[2]   #Le nom de la pin GPIO
+servo = Servo(myGPIO) #
 ```
 
 Les variables `17` et `27` correspondent aux numéros des ports GPIO utilisés pour les cerveaux moteurs.
-`myGPIO` et `myState` sont les variables qui stockent des données récupérées depuis l'API.
+`myGPIO` et `commande` sont les variables qui stockent des données récupérées depuis l'API via l'url.
 <br/>
 
 ```python
-def close_lock():
+def closeLocker():
 	servo.max()
+	led.color =(0.5, 0, 0)
 	time.sleep(0.5)
+	print('success')
+	print('closed')
 
-def open_lock():
+def openLocker():
 	servo.min()
+	led.color =(0, 0.5, 0)
 	time.sleep(0.5)
+	print('success')
+	print('opened')
 ```
 
 Voici les deux fonctions qui servent à **ouvrir** et **fermer** le loquet.
 :warning: Le loquet doit être qualibré manuellement afin que le `min` ou le `max` correspondent à la position **ouverte** ou **fermer**
+Avec la fermeture, une led RGB est activée afin de donner des informations visuelles à l'utilisateur
 <br/>
 
 ```python
-if myGPIO in ports :
-
-	if myState == 0:
-		print("Locker fermé")
-		close_lock()
-
-	elif myState == 1:
-		print("Locker ouvert")
-		open_lock()
+if len(sys.argv) > 1 :
+	if (myGPIO == '17') or (myGPIO == '27') :
+		if commande == '2':
+			openLocker()
+			isopen = True
+		elif commande == '1':
+			closeLocker()
+			isopen = False
+		else:
+			print('error')
+			print("l'instruction n'est pas bonne")
+			clignoter() #informe l'utilisateur d'un problème
+	else:
+		print('error')
+		print("le pin n'est pas bon")
+		clignoter() #informe l'utilisateur d'un problème
 ```
 
 Maintenant on vérifie que les ports GPIO correspondent bien à un loquet existant puis on change l'état de **fermer** à **ouvert** ou de **ouvert** à **fermer**
@@ -197,17 +211,20 @@ $result = null; //output original result
 Ensuite, le programme récupère les paramètres dans la requête API et vérifie leur présence.
 
 ```php
-if(isset($_GET["command"])&& !empty($_GET["command"])){
-    $commande = $_GET['commande'];
+if(isset($_GET['command']) && !empty($_GET['command'])){
+	$command = $_GET['command'];
 }else{
-    $output["error"]["command"]= "the command is wrong or missing";
+	$output[0]="error";
+	$output[1] = "command is missing or wrong";
 }
 
-if(isset($_GET["port"])&& !empty($_GET["port"])){
-    $port = $_GET['port'];
+if(isset($_GET['port']) && !empty($_GET['port'])){
+	$port = $_GET['port'];
 }else{
-    $output["error"]["port"] = "the port is wrong or missing";
+	$output[0]="error";
+	$output[1] ="port is missing or wrong";
 }
+
 ```
 
 <br/>
@@ -215,9 +232,9 @@ if(isset($_GET["port"])&& !empty($_GET["port"])){
 Le programme exécute le script python avec les paramètres. Il renvoit aussi une réponse `json` qui contient les print du script python.
 
 ```php
-exec("python3 script.py $commande $port ",$output);
+exec("python3 script.py $command $port ", $output);
 
-echo json_encode($output); // réponse json
+echo json_encode($output);//réponse json
 ```
 
 # 5.Serveur
